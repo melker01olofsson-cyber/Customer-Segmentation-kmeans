@@ -1,0 +1,355 @@
+---
+title: "Customer Segmentation Using K-Means Clustering"
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+editor: visual
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+library(ggplot2)
+library(factoextra)
+library(dplyr)
+library(ClusterR)
+```
+
+## Read and inspect the data
+
+```{r}
+gallerian <- read.csv("Gallerian-1.csv")
+
+head(gallerian)
+str(gallerian)
+summary(gallerian)
+
+colSums(is.na(gallerian))
+#View(gallerian)
+
+
+```
+
+We started with importing the customer data in order to examine the dataset structure. The purpuse was to control which features that existed, which were numerical and if any variables needed recoding or excluding before clustering. No values were missing.
+
+```{r}
+hist(gallerian$Age,
+     col = 'lightblue',
+     main = 'Customers Age',
+     xlab = 'Years old')
+```
+
+The distribution of the AGE variable is skewed to the right, which means that more customers on the left i.e younger than 40 years are more frequent shoppers in the mall.
+
+```{r}
+hist(gallerian$Annual.Income,
+     col = '#C7CEEA',
+     main = 'Annual Income of Customers',
+     xlab = 'Annual Income')
+```
+
+Such as in the previous histogram, the distribution of annual income is skewed to the right. The frequency of customers is increasing until an annual income of 80k, after that it decreases suggesting that higher earning customer are less likely to visit the mall.
+
+```{r}
+hist(gallerian$Spending.Score,
+     col = '#B5EAD7',
+     main = 'Spending Score of Customers',
+     xlab = 'Spending Score')
+```
+
+The distribution of spending score tends to be more normal. The shape is concentrated around the mean compared to previous plots. This means that its quite a lot of customers which are spending little or much at the mall.
+
+## Feature Engineering
+
+### Selecting features for our model
+
+```{r}
+
+#Selecting features for our model
+
+# Recode gender into dummies
+gallerian$Gender <- ifelse(gallerian$Gender == "Male", 0, 1)
+
+gallerian_data <- gallerian[, c("Age", "Annual.Income..k..", "Spending.Score..1.100." )]
+head(gallerian_data)
+
+# Standardizing the features
+
+gallerian_scaled <- scale(gallerian_data)
+gallerian_scaled <- as.data.frame(scale(gallerian_data))
+
+# Distance
+gallerian_dist <- dist(gallerian_scaled)
+
+attach(gallerian_data)
+```
+
+As part of the feature engineering process, the gender variable was recoded into a binary numeric variable where male customers were coded as 0 and female customers as 1. This transformation allows the variable to be included in a distance-based clustering algorithm as including gender in the clustering model allows us to examine whether customer segmentations differs between male and female customers for later interpretation.
+
+The clustering model was constructed using three variables describing customer characteristics: age, annual income, and spending score. The customer ID variable was excluded since it only serves as an identifier and does not contain meaningful information for clustering. Gender was initially included but was removed from the final model because its inclusion led to less stable results when applying the elbow and silhouette methods to determine the optimal number of clusters.
+
+### Data standardization
+
+Before performing the clustering analysis, all variables were standardized using z-score normalization. Standardization ensures that each variable has a mean of zero and a standard deviation of one.
+
+This step is necessary because K-means clustering relies on Euclidean distances, and variables measured on different scales could otherwise disproportionately influence the clustering results.
+
+### Determine optimal amounts of clusters
+
+```{r}
+set.seed(42)
+# Elbow Method for finding the optimal number of clusters
+# Within sum squares
+fviz_nbclust(gallerian_scaled, kmeans, method = "wss", k.max = 10, nstart = 25) + 
+  labs(subtitle = "Elbow method")
+
+#Silhoutte method
+Optimal_Clusters_KMeans(gallerian_scaled,
+                        max_clusters = 10,
+                        plot_clusters = TRUE,
+                        criterion = "silhouette")
+```
+
+To determine the appropriate number of clusters, both the elbow method and the silhouette method were applied. The elbow method indicated that the reduction in within-cluster variation begins to level off around five clusters.
+
+The silhouette method suggested a slightly higher optimal number of clusters, with the highest silhouette score observed at six clusters.
+
+Considering both methods together, the optimal number of clusters appears to lie in the range of four to six clusters. For interpretability and consistency with the elbow method, five clusters were selected for the final K-means model.
+
+## Customer Segmentation using K-means
+
+```{r}
+set.seed(42)
+
+kmeans_model <- kmeans(gallerian_scaled %>%
+                       select(Age, Annual.Income..k.., Spending.Score..1.100.),
+                       centers = 5,
+                       nstart = 25)
+
+gallerian$cluster <- factor(kmeans_model$cluster)
+
+head(gallerian)
+
+
+```
+
+### Method
+
+To identify potential customer segments, we apply the **K-means clustering algorithm**. K-means is an unsupervised learning method that partitions observations into kkk clusters by minimizing the within-cluster variation. Observations are grouped together based on similarity, where similarity is measured using distances between observations in the feature space.
+
+In this analysis, the clustering is based on three variables: **Age**, **Annual Income**, and **Spending Score**. These variables capture both demographic characteristics and purchasing behaviour, which are relevant for identifying meaningful customer segments.
+
+Since K-means relies on **distance calculations**, the variables are scaled prior to clustering. This ensures that variables measured on larger numerical scales do not dominate the clustering results. Without scaling, variables such as income could have a disproportionately large influence on the cluster formation.
+
+### Cluster vizualisation in original variables
+
+To facilitate interpretation, the resulting clusters are first visualized using **annual income** and **spending score**. These variables are particularly relevant for understanding purchasing behaviour and therefore provide an intuitive representation of the segmentation.
+
+```{r}
+library(ggplot2)
+
+ggplot(gallerian,
+       aes(x = Annual.Income..k..,
+           y = Spending.Score..1.100.,
+           color = cluster)) +
+  geom_point(size = 3) +
+  labs(title = "Customer Segmentation using K-means",
+       x = "Annual Income (k$)",
+       y = "Spending Score")
+```
+
+In this plot, each point represents a customer and the colours indicate the cluster assignment obtained from the K-means model. Displaying the clusters in these original variables allows us to interpret the segments in substantive terms, such as identifying groups of customers with similar income levels and spending patterns.
+
+This visualization is primarily used to **interpret the characteristics of the customer segments**, as the axes correspond directly to observable variables.
+
+### Cluster structure in reduced dimensional space
+
+Because the clustering is based on more than two variables, it is not possible to visualize the full feature space directly in two dimensions. To address this, we also present a two-dimensional projection of the clustering solution using the `fviz_cluster()` function.
+
+```{r}
+library(factoextra)
+
+fviz_cluster(kmeans_model,
+             data = gallerian_scaled %>%
+             select(Age, Annual.Income..k.., Spending.Score..1.100.),
+             ellipse.type = "convex",
+             geom = "point")
+
+```
+
+This visualization represents the observations using **principal components**, labelled as **Dim1** and **Dim2** in the plot. These dimensions are **linear combinations of the original variables (Age, Annual Income, and Spending Score)**, where each variable contributes with a certain weight. In other words, Dim1 and Dim2 can be interpreted as weighted summaries of the original variables that capture the main directions of variation in the data. Dim1 represents the direction in which the data varies the most, while Dim2 captures the second-largest source of variation, subject to being independent of Dim1.
+
+The purpose of this visualization is not direct interpretation of the axes, but rather to provide an overview of **how well the clusters are separated in the multidimensional feature space**. If clusters appear well separated in this projection, it suggests that the K-means algorithm has identified distinct groups in the data.
+
+```{r}
+kmeans_6 <- kmeans(
+  gallerian_scaled[,c("Age","Annual.Income..k..","Spending.Score..1.100.")],
+  centers = 6,
+  nstart = 25
+)
+
+fviz_cluster(kmeans_6, 
+             data = gallerian_scaled,
+             geom = "point")
+
+
+
+gallerian$cluster6 <- kmeans_6$cluster
+```
+
+Additionally the silhouette method suggested an optimal number of six clusters. To evaluate this result, we estimated models with six clusters. The idea is that this approach can be used in addition to five clusters in order to make more precise target-marketing. This will be continued later on.
+
+## Cluster Profiling
+
+To interpret the five clusters in a more systematic way, cluster profiling was conducted by calculating the average Age, Annual Income, and Spending Score within each cluster. This makes it possible to describe the typical customer in each segment and to assign meaningful labels to the groups.
+
+```{r}
+cluster_profile <- aggregate(
+  gallerian[, c("Age", "Annual.Income..k..", "Spending.Score..1.100.")],
+  by = list(Cluster = gallerian$cluster),
+  FUN = mean
+)
+
+
+cluster_sizes <- table(gallerian$cluster)
+
+cluster_profile$Size <- as.numeric(cluster_sizes)
+
+cluster_profile
+```
+
+The cluster profiles reveal substantial differences across the five groups. In particular, clusters 3 and 5 have similarly high average income, but very different spending scores, indicating that income alone does not explain spending behavior. Cluster 1 is the youngest group and has a relatively high spending score despite only moderate income, while cluster 2 consists of older customers with middle-range income and spending levels. Cluster 4 has the lowest average income and the lowest spending score, suggesting a comparatively low-value segment.
+
+```{r}
+gallerian$segment <- recode(gallerian$cluster,
+                            "1" = "Young active shoppers",
+                            "2" = "Older average customers",
+                            "3" = "High-income low-spending",
+                            "4" = "Low-value customers",
+                            "5" = "High-value customers")
+
+
+cluster_profile$Segment <- c("Young active shoppers",
+                             "Older average customers",
+                             "High-income low-spending",
+                             "Low-value customers",
+                             "High-value customers")
+
+cluster_profile$Segment <- factor(
+  cluster_profile$Segment,
+  levels = c("Young active shoppers",
+             "Older average customers",
+             "High-income low-spending",
+             "Low-value customers",
+             "High-value customers")
+)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(cluster_profile,
+       aes(x = Segment, y = Spending.Score..1.100.)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Average Spending Score by Segment",
+       x = "Customer segment",
+       y = "Average Spending Score") +
+  theme(axis.text.x = element_text(angle = 7, hjust = 0.5),
+        axis.title.x = element_text(hjust = 0.5),
+        plot.title = element_text(hjust = 0.5))
+```
+
+### Summary + marketing approach
+
+The cluster profiling and the average spending scores reveal clear differences in customer behaviour across the identified segments. These patterns provide useful insights for how the mall could allocate marketing resources and design targeted campaigns for different customer groups.
+
+Based on the results from the five-cluster solution, several strategic observations can be made:
+
+-   **High-value customers** have both high income and the highest spending scores. This segment likely contributes a large share of total revenue and should therefore be prioritized through loyalty programs, exclusive offers, and premium shopping experiences.
+
+-   **Young active shoppers** display relatively high spending despite only moderate income levels. This suggests that they may be more trend-driven and responsive to marketing campaigns, social media promotions, and events.
+
+-   **Older average customers** represent a stable segment with moderate income and spending behaviour. Standard promotional campaigns and seasonal offers may be sufficient to maintain engagement within this group.
+
+-   **High-income low-spending customers** represent an important opportunity. Although they have strong purchasing power, their spending levels remain relatively low. Targeted promotions or personalized incentives could potentially increase their engagement, but may be unnecessary.
+
+-   **Low-value customers** show both low income and low spending behaviour. This group is likely less responsive to marketing efforts and may therefore be a lower priority for targeted campaigns.
+
+Overall, the segmentation highlights that different customer groups require different marketing strategies. By tailoring promotional activities to the behavioural characteristics of each segment, the mall can potentially increase customer engagement and overall spending.
+
+### Extra: Cluster Profiling with 6 clusters
+
+```{r}
+cluster_profile_6 <- aggregate(
+  gallerian[, c("Age", "Annual.Income..k..", "Spending.Score..1.100.")],
+  by = list(Cluster = gallerian$cluster6),
+  FUN = mean
+)
+
+cluster_sizes_6 <- table(gallerian$cluster6)
+
+cluster_profile_6$Size <- as.numeric(cluster_sizes_6)
+
+cluster_profile_6
+```
+
+The six-cluster solution provides a more nuanced segmentation of the customer base. In particular, it separates high-income customers into two distinct groups: those with high spending and those with low spending. This distinction is strategically important, as these groups require different marketing approaches. High-income high-spending customers represent the mall’s most valuable segment, while high-income low-spending customers represent an opportunity for increased engagement.
+
+```{r}
+cluster_profile_6$Segment <- c(
+  "High-income, high spending",
+  "Low income, low spending",
+  "Young-high spending",
+  "Middle-income, moderate spending",
+  "Young-middle, moderate spending",
+  "High-income, low spending"
+)
+
+cluster_profile_6$Segment <- factor(
+  cluster_profile_6$Segment,
+  levels = c(
+  "High-income, high spending",
+  "Low income, low spending",
+  "Young-high spending",
+  "Middle-income, moderate spending",
+  "Young-middle, moderate spending",
+  "High-income, low spending"
+  
+)
+)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(cluster_profile_6,
+       aes(x = Segment, y = Spending.Score..1.100.)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  labs(title = "Average Spending Score by Segment",
+       x = "Customer segment",
+       y = "Average Spending Score") +
+  theme(axis.text.x = element_text(angle = 7, hjust = 0.5),
+        axis.title.x = element_text(hjust = 0.5),
+        plot.title = element_text(hjust = 0.5))
+```
+
+### Summary + marketing approach
+
+The six-cluster solution provides a more detailed view of the customer structure compared to the five-cluster model. The most notable change in the fviz-visualizations is that the cluster near origo is now divided into two seperate groups. while both segments have relatively similar income levels, they differ in their spending behavior, which was not captured in the earlier model.
+
+This additional segmentation suggests that what previously appeared as one homogeneous group actually contains customers with different levels of engagement in the mall. One of these segments shows moderate spending behavior, while the other displays lower engagement. From a marketing perspective, this distinction is valuable because the lower-spending subgroup may represent customers whose spending activity could potentially be increased through targeted promotions or incentives.
+
+Key insights from the six-cluster model include:
+
+-   **Young high spenders** remain one of the most active segments despite relatively low income levels, indicating a group that may respond well to trend-driven marketing and events.
+
+-   **High-income high-spending customers** continue to represent the mall’s most valuable segment and should be prioritized through loyalty programs and premium experiences.
+
+-   The **newly separated average segments** (middle-income, moderate spending & Young-middle, moderate spending) highlight customers with moderate income levels but different spending patterns, suggesting that part of this group may be easier to influence through marketing activities.
+
+Overall, the six-cluster model highlights additional behavioral differences within the middle customer segment. This provides more nuanced insights for the mall’s marketing strategy and may help identify groups where relatively small interventions could lead to increased spending activity.
