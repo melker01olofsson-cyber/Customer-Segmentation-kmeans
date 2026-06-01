@@ -2,6 +2,9 @@
 
 This project applies K-means clustering to segment customers based on demographic and behavioral variables. The goal is to identify meaningful customer groups and interpret how these segments can support business decision-making.
 
+## HTML page
+https://melker01olofsson-cyber.github.io/Customer-Segmentation-kmeans/
+
 ## Methods
 
 - Data cleaning and preprocessing in R
@@ -27,5 +30,3 @@ This project applies K-means clustering to segment customers based on demographi
 
 The analysis demonstrates how unsupervised learning can be used to structure customer data, identify patterns and support more targeted marketing approaches.
 
-## HTML page
-https://melker01olofsson-cyber.github.io/Customer-Segmentation-kmeans/
