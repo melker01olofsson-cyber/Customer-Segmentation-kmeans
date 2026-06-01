@@ -26,3 +26,6 @@ This project applies K-means clustering to segment customers based on demographi
 ## Key Takeaways
 
 The analysis demonstrates how unsupervised learning can be used to structure customer data, identify patterns and support more targeted business decisions.
+
+## HTML page
+https://melker01olofsson-cyber.github.io/Customer-Segmentation-kmeans/
