@@ -115,7 +115,7 @@ Optimal_Clusters_KMeans(gallerian_scaled,
                         criterion = "silhouette")
 ```
 
-To determine the appropriate number of clusters, both the elbow method and the silhouette method were applied. The elbow method indicated that the reduction in within-cluster variation begins to level off around five clusters.
+To determine the appropriate number of clusters, both the elbow method and the silhouette method were applied. The elbow method indicated that the reduction in within-cluster variation begins to level off around four clusters.
 
 The silhouette method suggested a slightly higher optimal number of clusters, with the highest silhouette score observed at six clusters.
 
